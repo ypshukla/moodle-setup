@@ -1,26 +1,26 @@
 #!/bin/bash
 
 # System Upgrade
-yum -y -q upgrade
+apt-get -y -qq upgrade
 
-# Disable SELinux
-sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
-setenforce 0
-
-# Add Nginx Repo
-echo -e "[nginx]\nname=nginx repo\nbaseurl=http://nginx.org/packages/centos/7/\$basearch/\ngpgcheck=0 \nenabled=1" > /etc/yum.repos.d/nginx.repo
-
-# Add various other repos
-yum install -y -q https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm https://centos7.iuscommunity.org/ius-release.rpm https://repo.percona.com/yum/percona-release-latest.noarch.rpm
-
-# Replace pre-installed mariadb-libs with Percona dependency to avoid conflict
-yum install -y -q Percona-Server-shared-compat-57
+# Add repos for php and MySQL
+add-apt-repository -y ppa:ondrej/php > /dev/null
+wget -q https://repo.percona.com/apt/percona-release_latest.$(lsb_release -sc)_all.deb
+dpkg -i percona-release_latest.$(lsb_release -sc)_all.deb > /dev/null
+apt-get -y -qq update
 
 # Install various components
-yum install -y -q nginx php71u-mcrypt php71u-tidy php71u-intl php71u-gd php71u-cli php71u-opcache php71u-common php71u-xmlrpc php71u-ldap php71u-mbstring php71u-process php71u-mysqlnd php71u-soap php71u-pdo php71u-json php71u-xml php71u-fpm php71u-bcmath Percona-Server-server-57 aspell graphviz
+apt-get install -y -qq vim wget rsync nginx php7.1-pspell php7.1-curl php7.1-gd php7.1-intl php7.1-mysql php7.1-xml php7.1-xmlrpc php7.1-ldap php7.1-zip php7.1-soap php7.1-mbstring php7.1-fpm aspell graphviz ghostscript
+
+# Install MySQL
+export MYSQL_ROOT_PASSWORD=Admin*123
+export DEBIAN_FRONTEND=noninteractive
+echo "percona-server-server-5.7 percona-server-server-5.7/root-pass password $MYSQL_ROOT_PASSWORD" | debconf-set-selections
+echo "percona-server-server-5.7 percona-server-server-5.7/re-root-pass password $MYSQL_ROOT_PASSWORD" | debconf-set-selections
+apt-get install -y -qq percona-server-server-5.7
 
 # MySQL Config
->/etc/my.cnf cat << EOF
+>/etc/mysql/my.cnf cat << EOF
 [client]
 default-character-set = utf8mb4
 
@@ -30,8 +30,7 @@ join_buffer_size = 128M
 sort_buffer_size = 2M
 read_rnd_buffer_size = 2M
 datadir=/var/lib/mysql
-socket=/var/lib/mysql/mysql.sock
-log-error=/var/log/mysqld.log
+socket=/var/run/mysqld/mysqld.sock
 innodb_file_format = Barracuda
 innodb_file_per_table = 1
 innodb_large_prefix
@@ -46,6 +45,7 @@ symbolic-links=0
 sql_mode=NO_ENGINE_SUBSTITUTION,STRICT_TRANS_TABLES
 
 [mysqld_safe]
+log-error=/var/log/mysqld.log
 pid-file=/var/run/mysqld/mysqld.pid
 
 [mysql]
@@ -53,10 +53,9 @@ default-character-set = utf8mb4
 EOF
 
 # Moodle Config in nginx
->/etc/nginx/conf.d/moodle.conf cat << EOF
+>/etc/nginx/sites-available/moodle.conf cat << EOF
  #### GENERAL CONFIG OPTIONS // It is recommended to have this as a general common config in case we have multiple Moodle sites
  ## Compression
-  gzip  on;
   gzip_buffers      16 24k;
   gzip_comp_level   6;
   gzip_http_version 1.1;
@@ -124,25 +123,21 @@ EOF
   fastcgi_intercept_errors        on;
   keepalive_requests           10000;
   server_tokens                  off;
-  tcp_nopush                      on;
-  tcp_nodelay                     on;
 
 server {
-    listen      80 default_server;
-
-    server_name  "";
+    server_name  moodle.vidyamantra.com;
     root   /var/www/moodle/html;
     index  index.php index.html index.htm;
 
     location ~ \.php\$ {
-        fastcgi_pass   127.0.0.1:9000;
+        fastcgi_pass   unix:/var/run/php/php7.1-fpm.sock;
         fastcgi_index  index.php;
         fastcgi_param  SCRIPT_FILENAME  \$document_root\$fastcgi_script_name;
         include        fastcgi_params;
     }
 
     location ~ ^(?P<script_name>.+\.php)(?P<path_info>/.+)$ {
-        fastcgi_pass  127.0.0.1:9000;
+        fastcgi_pass  unix:/var/run/php/php7.1-fpm.sock;
         fastcgi_index  index.php;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME \$document_root\$script_name;
@@ -158,13 +153,16 @@ server {
 }
 EOF
 
+# Enable Moodle site
+ln -s /etc/nginx/sites-available/moodle.conf /etc/nginx/sites-enabled/
+
 # Configure Moodle code
 mkdir -p /var/www/moodle/html
 mkdir -p /var/www/moodle/moodledata
-wget -O /tmp/moodle.tgz https://download.moodle.org/stable37/moodle-latest-37.tgz
+wget -q -O /tmp/moodle.tgz https://download.moodle.org/stable36/moodle-3.6.3.tgz
 tar -xzf /tmp/moodle.tgz --strip-components=1 -C /var/www/moodle/html/
-chown -R php-fpm.nginx /var/www/moodle/html
-chown -R php-fpm.nginx /var/www/moodle/moodledata
+chown -R www-data.www-data /var/www/moodle/html
+chown -R www-data.www-data /var/www/moodle/moodledata
 
 # Moodle Config
 >/var/www/moodle/html/config.php cat << EOF
@@ -178,8 +176,8 @@ global \$CFG;
 \$CFG->dblibrary = 'native';
 \$CFG->dbhost    = 'localhost';
 \$CFG->dbname    = 'moodle';
-\$CFG->dbuser    = 'root'; //UNSECURE
-\$CFG->dbpass    = 'Admin*123'; //UNSECURE
+\$CFG->dbuser    = 'moodle'; //UNSECURE
+\$CFG->dbpass    = 'Moodle*123'; //UNSECURE
 \$CFG->prefix    = 'mdl_';
 \$CFG->dboptions = array (
   'dbpersist' => 0,
@@ -207,46 +205,44 @@ require_once(__DIR__ . '/lib/setup.php');
 EOF
 
 # php
-sed -i 's/max_execution_time =.*/max_execution_time=300/' /etc/php.ini
-sed -i 's/max_input_time =.*/max_input_time=600/' /etc/php.ini
-sed -i 's/memory_limit =.*/memory_limit=2048M/' /etc/php.ini
-sed -i 's/post_max_size =.*/post_max_size=512M/' /etc/php.ini
-sed -i 's/upload_max_filesize =.*/upload_max_filesize=512M/' /etc/php.ini
+sed -i 's/max_execution_time =.*/max_execution_time=300/' /etc/php/7.1/fpm/php.ini
+sed -i 's/max_input_time =.*/max_input_time=600/' /etc/php/7.1/fpm/php.ini
+sed -i 's/memory_limit =.*/memory_limit=2048M/' /etc/php/7.1/fpm/php.ini
+sed -i 's/post_max_size =.*/post_max_size=512M/' /etc/php/7.1/fpm/php.ini
+sed -i 's/upload_max_filesize =.*/upload_max_filesize=512M/' /etc/php/7.1/fpm/php.ini
 
 # opcache
 mkdir -p /var/www/.opcache
-sed -i 's/;opcache.file_cache=.*/opcache.file_cache=\/var\/www\/.opcache/' /etc/php.d/10-opcache.ini
-sed -i 's/opcache.memory_consumption=.*/opcache.memory_consumption=512/' /etc/php.d/10-opcache.ini
-sed -i 's/opcache.max_accelerated_files=.*/opcache.max_accelerated_files=12000/' /etc/php.d/10-opcache.ini
-sed -i 's/;opcache.revalidate_freq=.*/opcache.revalidate_freq=60/' /etc/php.d/10-opcache.ini
-sed -i 's/;opcache.use_cwd=.*/opcache.use_cwd=1/' /etc/php.d/10-opcache.ini
-sed -i 's/;opcache.validate_timestamps=.*/opcache.validate_timestamps=1/' /etc/php.d/10-opcache.ini
-sed -i 's/;opcache.save_comments=.*/opcache.save_comments=1/' /etc/php.d/10-opcache.ini
-sed -i 's/;opcache.enable_file_override=.*/opcache.enable_file_override=0/' /etc/php.d/10-opcache.ini
+sed -i 's/;opcache.file_cache=.*/opcache.file_cache=\/var\/www\/.opcache/' /etc/php/7.1/cli/conf.d/10-opcache.ini
+sed -i 's/opcache.memory_consumption=.*/opcache.memory_consumption=512/' /etc/php/7.1/cli/conf.d/10-opcache.ini
+sed -i 's/opcache.max_accelerated_files=.*/opcache.max_accelerated_files=12000/' /etc/php/7.1/cli/conf.d/10-opcache.ini
+sed -i 's/;opcache.revalidate_freq=.*/opcache.revalidate_freq=60/' /etc/php/7.1/cli/conf.d/10-opcache.ini
+sed -i 's/;opcache.use_cwd=.*/opcache.use_cwd=1/' /etc/php/7.1/cli/conf.d/10-opcache.ini
+sed -i 's/;opcache.validate_timestamps=.*/opcache.validate_timestamps=1/' /etc/php/7.1/cli/conf.d/10-opcache.ini
+sed -i 's/;opcache.save_comments=.*/opcache.save_comments=1/' /etc/php/7.1/cli/conf.d/10-opcache.ini
+sed -i 's/;opcache.enable_file_override=.*/opcache.enable_file_override=0/' /etc/php/7.1/cli/conf.d/10-opcache.ini
 
-# Add to startup
+# Add services to startup
 systemctl enable nginx
-systemctl enable php-fpm
-systemctl enable mysqld
+systemctl enable php7.1-fpm
+systemctl enable mysql
 
 # Start services
 systemctl start nginx
-systemctl start php-fpm
+systemctl start php7.1-fpm
 systemctl start mysql
-
-# Change MySQL default password
-export PW=$(grep 'temporary password' /var/log/mysqld.log | awk '{print $11}')
-mysqladmin -u root -p$PW password Admin*123
 
 # Create database, create user & grant permission
 mysql -uroot -pAdmin*123 -e "create database moodle"
+mysql -uroot -pAdmin*123 -e "CREATE USER moodle@localhost IDENTIFIED BY 'Moodle*123';"
+mysql -uroot -pAdmin*123 -e "GRANT ALL PRIVILEGES ON moodle.* TO 'moodle'@'localhost';"
+mysql -uroot -pAdmin*123 -e "FLUSH PRIVILEGES;"
 
 # Redirect wwwroot to host file
 echo "127.0.0.1  moodle.vidyamantra.com" >> /etc/hosts
 
-# Setup Moodle cron
-# Remove HTTP_HOST from Moodle config and cron
-(crontab -l 2>/dev/null; echo "* * * * * /usr/bin/php /var/www/moodle/html/admin/cli/cron.php  >/dev/null") | crontab -
+# Reload nginx
+service nginx reload
 
-# Open Moodle in Browser
-gio open "http://moodle.vidyamantra.com"
+# Setup Moodle cron
+(crontab -l 2>/dev/null; echo "* * * * * /usr/bin/php /var/www/moodle/html/admin/cli/cron.php  >/dev/null") | crontab -

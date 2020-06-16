@@ -2,10 +2,10 @@
 It will install Moodle with basic components
 
 # Compatibility
-It has been tested on CentOS 7
+It has been tested on Ubuntu 18.04.2 LTS
 
 # How to use
-Run web_setup.sh as root
+Run web_setup_ubuntu.sh as root
 
 # Post installation tasks
 1) Secure Database by strong password
