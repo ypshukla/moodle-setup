@@ -2,7 +2,7 @@
 It will install Moodle with basic components
 
 # Compatibility
-It has been tested on Ubuntu 18.04.2 LTS
+It has been tested on Ubuntu 20.04.2 LTS
 
 # How to use
 Run web_setup_ubuntu.sh as root
@@ -17,7 +17,7 @@ Run web_setup_ubuntu.sh as root
 7) Configure Solr (global search functionality)
 8) Configure external email server (we recommend AWS SES)
 9) Plan and deploy backup and disaster recovery
-10) [optional] Setup Analytics (https://docs.moodle.org/35/en/Analytics)
+10) [optional] Setup Analytics (https://docs.moodle.org/310/en/Analytics)
 11) [optional] Move data directory to S3 (https://moodle.org/plugins/tool_objectfs)
 
 # References

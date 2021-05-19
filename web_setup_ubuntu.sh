@@ -10,7 +10,7 @@ dpkg -i percona-release_latest.$(lsb_release -sc)_all.deb > /dev/null
 apt-get -y -qq update
 
 # Install various components
-apt-get install -y -qq vim wget rsync nginx php7.1-pspell php7.1-curl php7.1-gd php7.1-intl php7.1-mysql php7.1-xml php7.1-xmlrpc php7.1-ldap php7.1-zip php7.1-soap php7.1-mbstring php7.1-fpm aspell graphviz ghostscript
+apt-get install -y -qq nginx php7.4-pspell php7.4-curl php7.4-gd php7.4-intl php7.4-mysql php7.4-xml php7.4-xmlrpc php7.4-ldap php7.4-zip php7.4-soap php7.4-mbstring php7.4-fpm aspell graphviz ghostscript
 
 # Install MySQL
 export MYSQL_ROOT_PASSWORD=Admin*123
@@ -23,7 +23,6 @@ apt-get install -y -qq percona-server-server-5.7
 >/etc/mysql/my.cnf cat << EOF
 [client]
 default-character-set = utf8mb4
-
 [mysqld]
 innodb_buffer_pool_size = 128M
 join_buffer_size = 128M
@@ -37,17 +36,13 @@ innodb_large_prefix
 character-set-server = utf8mb4
 collation-server = utf8mb4_unicode_ci
 skip-character-set-client-handshake
-
 # Disabling symbolic-links is recommended to prevent assorted security risks
 symbolic-links=0
-
 # Recommended in standard MySQL setup
 sql_mode=NO_ENGINE_SUBSTITUTION,STRICT_TRANS_TABLES
-
 [mysqld_safe]
 log-error=/var/log/mysqld.log
 pid-file=/var/run/mysqld/mysqld.pid
-
 [mysql]
 default-character-set = utf8mb4
 EOF
@@ -83,7 +78,6 @@ EOF
   gzip_vary         on;
   gzip_proxied      any;
   gzip_disable msie6;
-
 ## Size Limits
   client_body_buffer_size        64k;
   client_header_buffer_size      32k;
@@ -94,11 +88,9 @@ EOF
   fastcgi_temp_file_write_size  256k;
   large_client_header_buffers 32 32k;
   map_hash_bucket_size           192;
-  server_names_hash_bucket_size  512;
   server_names_hash_max_size    8192;
   types_hash_bucket_size         512;
   variables_hash_max_size       1024;
-
  ## Timeouts
   client_body_timeout            180;
   client_header_timeout          180;
@@ -108,14 +100,11 @@ EOF
   send_timeout                  1200;
   proxy_read_timeout            1200;
   proxy_connect_timeout          120;
-
-
  ## Open File Performance
   open_file_cache max=100000 inactive=2m;
   open_file_cache_valid          2m;
   open_file_cache_min_uses         1;
   open_file_cache_errors          on;
-
  ## General Options
   ignore_invalid_headers          on;
   recursive_error_pages           on;
@@ -123,28 +112,24 @@ EOF
   fastcgi_intercept_errors        on;
   keepalive_requests           10000;
   server_tokens                  off;
-
 server {
-    server_name  moodle.vidyamantra.com;
+    server_name  kanpuriyazzzz.com www.kanpuriyazzzz.com;
     root   /var/www/moodle/html;
     index  index.php index.html index.htm;
-
     location ~ \.php\$ {
-        fastcgi_pass   unix:/var/run/php/php7.1-fpm.sock;
+        fastcgi_pass   unix:/var/run/php/php7.4-fpm.sock;
         fastcgi_index  index.php;
         fastcgi_param  SCRIPT_FILENAME  \$document_root\$fastcgi_script_name;
         include        fastcgi_params;
     }
-
     location ~ ^(?P<script_name>.+\.php)(?P<path_info>/.+)$ {
-        fastcgi_pass  unix:/var/run/php/php7.1-fpm.sock;
+        fastcgi_pass  unix:/var/run/php/php7.4-fpm.sock;
         fastcgi_index  index.php;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME \$document_root\$script_name;
         fastcgi_param PATH_INFO \$path_info;
         fastcgi_param PATH_TRANSLATED \$document_root\$path_info;
     }
-
     location ~* \.(?:ico|css|js|gif|jpe?g|png)$ {
         expires 30d;
         add_header Pragma public;
@@ -153,13 +138,16 @@ server {
 }
 EOF
 
+# Configure existing Nginx parameter
+sed -i 's/server_names_hash_bucket_size .*/server_names_hash_bucket_size 512/' /etc/nginx/nginx.conf
+
 # Enable Moodle site
 ln -s /etc/nginx/sites-available/moodle.conf /etc/nginx/sites-enabled/
 
 # Configure Moodle code
 mkdir -p /var/www/moodle/html
 mkdir -p /var/www/moodle/moodledata
-wget -q -O /tmp/moodle.tgz https://download.moodle.org/stable36/moodle-3.6.3.tgz
+wget -q -O /tmp/moodle.tgz https://download.moodle.org/stable310/moodle-latest-310.tgz
 tar -xzf /tmp/moodle.tgz --strip-components=1 -C /var/www/moodle/html/
 chown -R www-data.www-data /var/www/moodle/html
 chown -R www-data.www-data /var/www/moodle/moodledata
@@ -167,11 +155,9 @@ chown -R www-data.www-data /var/www/moodle/moodledata
 # Moodle Config
 >/var/www/moodle/html/config.php cat << EOF
 <?php  // Moodle configuration file
-
 unset(\$CFG);
 global \$CFG;
 \$CFG = new stdClass();
-
 \$CFG->dbtype    = 'mysqli';
 \$CFG->dblibrary = 'native';
 \$CFG->dbhost    = 'localhost';
@@ -185,51 +171,46 @@ global \$CFG;
   'dbsocket' => '',
   'dbcollation' => 'utf8mb4_unicode_ci',
 );
-
-\$CFG->wwwroot = 'http://moodle.vidyamantra.com';
+\$CFG->wwwroot = 'http://kanpuriyazzzz.com';
 \$CFG->dataroot  = '/var/www/moodle/moodledata';
 \$CFG->admin     = 'admin';
-
 \$CFG->directorypermissions = 0777;
-
 // Enable debugging
 @error_reporting(E_ALL | E_STRICT);   // NOT FOR PRODUCTION SERVERS!
 @ini_set('display_errors', '1');         // NOT FOR PRODUCTION SERVERS!
 \$CFG->debug = (E_ALL | E_STRICT);   // === DEBUG_DEVELOPER - NOT FOR PRODUCTION SERVERS!
 \$CFG->debugdisplay = 1;              // NOT FOR PRODUCTION SERVERS!
-
 require_once(__DIR__ . '/lib/setup.php');
-
 // There is no php closing tag in this file,
 // it is intentional because it prevents trailing whitespace problems!
 EOF
 
 # php
-sed -i 's/max_execution_time =.*/max_execution_time=300/' /etc/php/7.1/fpm/php.ini
-sed -i 's/max_input_time =.*/max_input_time=600/' /etc/php/7.1/fpm/php.ini
-sed -i 's/memory_limit =.*/memory_limit=2048M/' /etc/php/7.1/fpm/php.ini
-sed -i 's/post_max_size =.*/post_max_size=512M/' /etc/php/7.1/fpm/php.ini
-sed -i 's/upload_max_filesize =.*/upload_max_filesize=512M/' /etc/php/7.1/fpm/php.ini
+sed -i 's/max_execution_time =.*/max_execution_time=300/' /etc/php/7.4/fpm/php.ini
+sed -i 's/max_input_time =.*/max_input_time=600/' /etc/php/7.4/fpm/php.ini
+sed -i 's/memory_limit =.*/memory_limit=2048M/' /etc/php/7.4/fpm/php.ini
+sed -i 's/post_max_size =.*/post_max_size=512M/' /etc/php/7.4/fpm/php.ini
+sed -i 's/upload_max_filesize =.*/upload_max_filesize=512M/' /etc/php/7.4/fpm/php.ini
 
 # opcache
 mkdir -p /var/www/.opcache
-sed -i 's/;opcache.file_cache=.*/opcache.file_cache=\/var\/www\/.opcache/' /etc/php/7.1/cli/conf.d/10-opcache.ini
-sed -i 's/opcache.memory_consumption=.*/opcache.memory_consumption=512/' /etc/php/7.1/cli/conf.d/10-opcache.ini
-sed -i 's/opcache.max_accelerated_files=.*/opcache.max_accelerated_files=12000/' /etc/php/7.1/cli/conf.d/10-opcache.ini
-sed -i 's/;opcache.revalidate_freq=.*/opcache.revalidate_freq=60/' /etc/php/7.1/cli/conf.d/10-opcache.ini
-sed -i 's/;opcache.use_cwd=.*/opcache.use_cwd=1/' /etc/php/7.1/cli/conf.d/10-opcache.ini
-sed -i 's/;opcache.validate_timestamps=.*/opcache.validate_timestamps=1/' /etc/php/7.1/cli/conf.d/10-opcache.ini
-sed -i 's/;opcache.save_comments=.*/opcache.save_comments=1/' /etc/php/7.1/cli/conf.d/10-opcache.ini
-sed -i 's/;opcache.enable_file_override=.*/opcache.enable_file_override=0/' /etc/php/7.1/cli/conf.d/10-opcache.ini
+sed -i 's/;opcache.file_cache=.*/opcache.file_cache=\/var\/www\/.opcache/' /etc/php/7.4/cli/conf.d/10-opcache.ini
+sed -i 's/opcache.memory_consumption=.*/opcache.memory_consumption=512/' /etc/php/7.4/cli/conf.d/10-opcache.ini
+sed -i 's/opcache.max_accelerated_files=.*/opcache.max_accelerated_files=12000/' /etc/php/7.4/cli/conf.d/10-opcache.ini
+sed -i 's/;opcache.revalidate_freq=.*/opcache.revalidate_freq=60/' /etc/php/7.4/cli/conf.d/10-opcache.ini
+sed -i 's/;opcache.use_cwd=.*/opcache.use_cwd=1/' /etc/php/7.4/cli/conf.d/10-opcache.ini
+sed -i 's/;opcache.validate_timestamps=.*/opcache.validate_timestamps=1/' /etc/php/7.4/cli/conf.d/10-opcache.ini
+sed -i 's/;opcache.save_comments=.*/opcache.save_comments=1/' /etc/php/7.4/cli/conf.d/10-opcache.ini
+sed -i 's/;opcache.enable_file_override=.*/opcache.enable_file_override=0/' /etc/php/7.4/cli/conf.d/10-opcache.ini
 
 # Add services to startup
 systemctl enable nginx
-systemctl enable php7.1-fpm
+systemctl enable php7.4-fpm
 systemctl enable mysql
 
 # Start services
 systemctl start nginx
-systemctl start php7.1-fpm
+systemctl start php7.4-fpm
 systemctl start mysql
 
 # Create database, create user & grant permission
@@ -246,3 +227,4 @@ service nginx reload
 
 # Setup Moodle cron
 (crontab -l 2>/dev/null; echo "* * * * * /usr/bin/php /var/www/moodle/html/admin/cli/cron.php  >/dev/null") | crontab -
+
